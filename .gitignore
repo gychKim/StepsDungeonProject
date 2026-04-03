@@ -12,9 +12,22 @@
 /[Uu]ser[Ss]ettings/
 *.log
 
+#안드로이드 빌드 시 생성되는 임시 폴더 무시
+/.utmp/*
+
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
 *.blend1
 *.blend1.meta
+
+#ㅡㅡㅡㅡ이하 폴더는 저작권 문제가 있으므로 제외ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+/Packages/
+/Assets/Prefabs/
+/Assets/Resources/
+/Assets/Resources_moved/
+/Assets/Scenes/
+/Assets/Plugins/
+/Assets/Assets/
+#ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 
 # MemoryCaptures can get excessive in size.
 # They also could contain extremely sensitive data
@@ -33,6 +46,7 @@
 
 # Visual Studio cache directory
 .vs/
+.vscode/
 
 # Gradle cache directory
 .gradle/
