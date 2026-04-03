@@ -272,14 +272,19 @@ private async UniTask BossSpawnAsync(CancellationToken ct)
 
 ## 🔧 트러블슈팅
 
-### 1. 레이스 컨디션
-- 문제 : Dictionary로 캐싱된 자원을 이용을 동시에 이용하려 할 때 레이스 컨디션 문제가 발생(ArgumentException 등)했습니다.
-- 해결 : 캐싱된 값을 AsyncLazy로 변환하여 동시에 같은 자원을 이용하려 할 때, 늦게 온 한쪽은 Task를 대기하게 만들어 Task 종료 시 자원을 획득하게 만들어 해결했습니다.
+### 1. 레이스 컨디션 1
+- 문제 : 리소스 시스템에서 Addressables 비동기 로드 중 동일 키로 중복 요청이 들어왔을 때 캐싱된 데이터를 처리하면서 레이스 컨디션 문제가 발생(ArgumentException 등)했습니다.
+- 해결 : 캐싱된 자원을 AsyncLazy로 변환하여 동시에 같은 자원을 이용하려 할 때, 늦게 온 한쪽은 Task를 대기하게 만들어 Task 종료 시 자원을 획득하게 만들어 해결했습니다.
 
-### 2. Unity Google Sheets(UGS) 사용 문제
+### 2. 레이스 컨디션 2
+- 문제: 페이드 아웃 후 룸 배치·구조물 배치가 끝나지 않았는데 RoomGeneratorSystem이 Observable 구독 방식이라 완료 시점을 보장할 수 없어, 페이드 인이 먼저 실행되는 현상이 발생했습니다.
+- 해결: UniTaskCompletionSource로 룸 배치 완료 시점까지 대기하도록 수정했습니다.
+
+### 3. Unity Google Sheets(UGS) 사용
 - 문제 : 기존 UGS 라이브러리를 이용 중, Enum의 값을 받아오는 구조가 동작하지 않음(유니티 6로 이전하면서 문제 발생으로 추정)을 확인했습니다.
 - 해결 : Apps Script를 직접 구현하여 Google Sheets와 연동했습니다.
 
 ## 💬 회고
 - UniTask와 R3(반응형 프로그래밍)의 사용법을 더욱 잘 알게 되었습니다.
 - 동기가 필요한 부분(연출, 데이터 제어 등)의 처리방법이나 대처법을 잘 알게 되었습니다.
+- 유지보수와 확장성을 고려하면서 코드를 작성하였지만 아직 리팩토링 해야 하는 부분이 자주 보여 아쉽다고 생각합니다.
