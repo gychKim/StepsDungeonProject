@@ -181,10 +181,105 @@ private async UniTask BossSpawnAsync(CancellationToken ct)
 
 ## 🔧 트러블슈팅
 
-### 1. 레이스 컨디션 문제
-비동기 작업을 하면서 발생하는 레이스 컨디션 문제를 UniTask.Lazy를 이용하여 해결.
+### 1. 레이스 컨디션
+
+- 문제 : 같은 자원 이용과ameStateUseCase.SetGameState(GameState.EnterBossRoom);
+```
 
 ---
 
-## 💬 회고
+### 3. 선택지 시스템 (Choice)
 
+각 방에서 2개의 선택지를 제시하고, 선택에 따라 확률 기반으로 보상 또는 리스크가 적용됩니다.  
+선택 이력(ChoiceHistory)을 저장하여 다음 방의 난이도(RoomLevel)를 결정합니다.
+
+```csharp
+private RewardData CalculateReward(int index)
+{
+    float chance = index == 1
+        ? currentChoiceData.ChoiceReward01Chance
+        : currentChoiceData.ChoiceReward02Chance;
+
+    bool isSuccess = Random.Gacha(chance); // 확률 판정
+
+    // 성공 → Reward 효과 / 실패 → Risk 효과 적용
+    effect.type  = isSuccess ? rewardType  : riskType;
+    effect.value = isSuccess ? rewardValue : riskValue;
+    ...
+}
+```
+
+---
+
+### 4. 방 생성 시스템
+
+Addressables로 `RoomDecoDataSO`를 비동기 로드한 뒤, Tilemap에 타일을 배치하고 오브젝트·이동수단을 스폰합니다.  
+**Poisson Disc Sampling**으로 Props를 자연스럽게 분산 배치합니다.
+
+```csharp
+private async UniTask RoomGenerate(NormalRoomData roomData, CancellationToken ct)
+{
+    roomController.ClearAll();
+    RoomDecoDataSO deco = await resourceService.LoadAssetDataAsync<RoomDecoDataSO>(
+        "RoomDeco_" + roomData.RoomTheme, ct);
+
+    // 타일 배치
+    for (int i = 0; i < deco.tileDataArr.Length; i++)
+        roomController.SetGroundTile(new Vector3Int(i % deco.roomSize.x, i / deco.roomSize.x), deco.tileDataArr[i]);
+
+    await roomController.SpawnProps(deco); // Poisson Disc Sampling 적용
+
+    await UniTask.WhenAll(
+        roomController.SpawnObjectAsync(roomData, deco.groundLevelY, ct),
+        roomController.SpawnTransportObjectsAsync(roomData, deco.groundLevelY, ct));
+}
+```
+
+---
+
+### 5. 보스 시스템 (UniTaskCompletionSource 비동기 시퀀스)
+
+보스 데이터 준비와 스폰 로직을 `UniTaskCompletionSource`로 연결하여, 데이터가 준비되기 전까지 스폰을 안전하게 대기합니다.
+
+```csharp
+// 데이터 준비 대기
+private UniTaskCompletionSource<BossRoomData> bossRoomDataUCS;
+
+private async UniTask BossSpawnAsync(CancellationToken ct)
+{
+    await bossRoomDataUCS.Task; // 던전 시스템이 SetResult 할 때까지 대기
+    GameObject prefab = await resourceService.LoadAssetDataAsync<GameObject>($"Boss_{...}", ct);
+    bossController = GameObject.Instantiate(prefab, ...).GetComponent<BossController>();
+    bossSpawnedSub.OnNext(bossController);
+}
+```
+
+---
+
+### 6. Google Sheets 연동 데이터 관리
+
+스킬·선택지·방·보스 등의 게임 데이터를 Google Sheets에서 관리합니다.  
+`Newtonsoft.Json` + 커스텀 `JsonConverter`(Vector3Int, StringEnum)로 역직렬화합니다.
+
+---
+
+### 7. AES + HMAC 세이브 시스템
+
+세이브 데이터 위변조 방지를 위해 AES-CBC 암호화와 HMAC 무결성 검증을 적용했습니다.  
+던전 Seed, 스킬 목록, 선택 이력을 저장하여 게임 재개 시 동일한 상태를 복원합니다.
+
+---
+
+## 🔧 트러블슈팅
+
+### 1. 레이스 컨디션
+- 문제 : Dictionary로 캐싱된 자원을 이용을 동시에 이용하려 할 때 레이스 컨디션 문제가 발생(ArgumentException 등)했습니다.
+- 해결 : 캐싱된 값을 AsyncLazy로 변환하여 동시에 같은 자원을 이용하려 할 때, 늦게 온 한쪽은 Task를 대기하게 만들어 Task 종료 시 자원을 획득하게 만들어 해결했습니다.
+
+### 2. Unity Google Sheets(UGS) 사용 문제
+- 문제 : 기존 UGS 라이브러리를 이용 중, Enum의 값을 받아오는 구조가 동작하지 않음(유니티 6로 이전하면서 문제 발생으로 추정)을 확인했습니다.
+- 해결 : Apps Script를 직접 구현하여 Google Sheets와 연동했습니다.
+
+## 💬 회고
+- UniTask와 R3(반응형 프로그래밍)의 사용법을 더욱 잘 알게 되었습니다.
+- 동기가 필요한 부분(연출, 데이터 제어 등)의 처리방법이나 대처법을 잘 알게 되었습니다.
